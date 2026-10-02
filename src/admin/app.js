@@ -231,7 +231,11 @@ app.get('/admin/settings', requireAuth, async (req, res) => {
   if (!settings) {
     settings = await prisma.setting.create({ data: {} });
   }
-  res.render('settings', { username: req.session.username, settings });
+  res.render('settings', { 
+    username: req.session.username, 
+    settings,
+    success: req.query.success
+  });
 });
 
 app.post('/admin/settings', requireAuth, async (req, res) => {
