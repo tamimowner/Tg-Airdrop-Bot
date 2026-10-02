@@ -9,31 +9,57 @@
 <body class="bg-gray-900 text-gray-100 min-h-screen">
   <%- include('partials/nav') %>
   <div class="container mx-auto px-4 py-8">
-    <h1 class="text-3xl font-bold mb-8 text-yellow-400">Dashboard</h1>
-    
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
-      <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+    <h1 class="text-3xl font-bold mb-2 text-yellow-400">Dashboard</h1>
+    <p class="text-gray-400 mb-8">Airdrop overview & quick actions</p>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
         <div class="text-gray-400 text-sm">Total Users</div>
-        <div class="text-3xl font-bold mt-2"><%= stats.totalUsers %></div>
+        <div class="text-3xl font-bold mt-1"><%= stats.totalUsers %></div>
       </div>
-      <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <div class="text-gray-400 text-sm">Verified Users</div>
-        <div class="text-3xl font-bold mt-2 text-green-400"><%= stats.verifiedUsers %></div>
+      <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div class="text-gray-400 text-sm">Submitted Details</div>
+        <div class="text-3xl font-bold mt-1 text-green-400"><%= stats.verifiedUsers %></div>
       </div>
-      <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <div class="text-gray-400 text-sm">Pending Verifications</div>
-        <div class="text-3xl font-bold mt-2 text-orange-400"><%= stats.pendingSubmissions %></div>
+      <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <div class="text-gray-400 text-sm">Pending Verify</div>
+        <div class="text-3xl font-bold mt-1 text-orange-400"><%= stats.pendingSubmissions %></div>
       </div>
-      <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+      <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
         <div class="text-gray-400 text-sm">Total Referrals</div>
-        <div class="text-3xl font-bold mt-2 text-blue-400"><%= stats.totalReferrals %></div>
+        <div class="text-3xl font-bold mt-1 text-blue-400"><%= stats.totalReferrals %></div>
       </div>
     </div>
 
+    <!-- Quick Actions -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+      <a href="/admin/users" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-bold rounded-xl p-5 text-center transition">
+        👥 Users
+        <div class="text-sm font-normal mt-1 opacity-80">View all + wallet/X</div>
+      </a>
+      <a href="/admin/tasks" class="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl p-5 text-center transition">
+        📋 Tasks
+        <div class="text-sm font-normal mt-1 opacity-80">Edit links & tasks</div>
+      </a>
+      <a href="/admin/verification" class="bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl p-5 text-center transition">
+        ✅ Verification
+        <div class="text-sm font-normal mt-1 opacity-80">Approve submissions</div>
+      </a>
+      <a href="/admin/settings" class="bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl p-5 text-center transition">
+        ⚙️ Settings
+        <div class="text-sm font-normal mt-1 opacity-80">Airdrop amounts</div>
+      </a>
+    </div>
+
+    <!-- Recent Users -->
     <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-      <h2 class="text-xl font-semibold mb-4">Recent Users</h2>
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold">Recent Users</h2>
+        <a href="/admin/users" class="text-yellow-400 text-sm hover:underline">View all →</a>
+      </div>
       <div class="overflow-x-auto">
-        <table class="w-full text-left">
+        <table class="w-full text-left text-sm">
           <thead>
             <tr class="text-gray-400 border-b border-gray-700">
               <th class="py-3">Telegram</th>
@@ -44,19 +70,22 @@
             </tr>
           </thead>
           <tbody>
-            <% recentUsers.forEach(u => { %>
+            <% if (!recentUsers || recentUsers.length === 0) { %>
+              <tr><td colspan="5" class="py-6 text-center text-gray-500">No users yet. Share the bot link!</td></tr>
+            <% } %>
+            <% (recentUsers || []).forEach(function(u) { %>
               <tr class="border-b border-gray-700/50">
                 <td class="py-3">@<%= u.username || u.telegramId %></td>
                 <td class="py-3"><%= u.firstName || '-' %></td>
                 <td class="py-3"><%= u.referralCount %></td>
                 <td class="py-3">
                   <% if (u.isVerified) { %>
-                    <span class="text-green-400">Verified</span>
+                    <span class="text-green-400">Submitted</span>
                   <% } else { %>
                     <span class="text-yellow-400">Pending</span>
                   <% } %>
                 </td>
-                <td class="py-3 text-sm text-gray-400"><%= new Date(u.createdAt).toLocaleString() %></td>
+                <td class="py-3 text-gray-400"><%= new Date(u.createdAt).toLocaleString() %></td>
               </tr>
             <% }) %>
           </tbody>
