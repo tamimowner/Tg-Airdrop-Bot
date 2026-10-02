@@ -58,17 +58,15 @@ async function getOrCreateUser(ctx, referralCode = null) {
   return user;
 }
 
-/** Extract @username from t.me link */
 function extractChatFromLink(link) {
   if (!link) return null;
   const match = link.match(/(?:t\.me\/|telegram\.me\/)([a-zA-Z0-9_+\-]+)/i);
   if (!match) return null;
   const part = match[1];
-  if (part.startsWith('+')) return null; // invite link
+  if (part.startsWith('+')) return null;
   return '@' + part.replace(/^@/, '');
 }
 
-/** Check if user is member. Bot must be admin in the channel/group. */
 async function isUserMember(telegram, chatIdOrUsername, userId) {
   try {
     const member = await telegram.getChatMember(chatIdOrUsername, userId);
@@ -95,13 +93,13 @@ function createBot(token) {
       }
 
       const welcome = settings.welcomeMessage ||
-        `Hi <b>${user.firstName || user.username || 'User'}</b>! I am your friendly Zycot Bot\n\n` +
-        `✅ Please complete all the tasks and submit details correctly to be eligible for the airdrop\n\n` +
-        `$ Total for airdrop: ${settings.totalAirdropAmount} USDT\n` +
-        `🔹 ${settings.randomWinnersCount} Random winners will receive ${settings.randomWinnerAmount} USDT each\n` +
-        `👥 Top ${settings.topReferrersCount} Referrers will receive ${settings.topReferrerAmount} USDT each\n\n` +
-        `📘 By Participating you are agreeing to the Zycot (Airdrop) Program Terms and Conditions.\n\n` +
-        `Click "Continue" to proceed`;
+        'Hi <b>' + (user.firstName || user.username || 'User') + '</b>! I am your friendly Zycot Bot\n\n' +
+        '✅ Please complete all the tasks and submit details correctly to be eligible for the airdrop\n\n' +
+        '$ Total for airdrop: ' + settings.totalAirdropAmount + ' USDT\n' +
+        '🔹 ' + settings.randomWinnersCount + ' Random winners will receive ' + settings.randomWinnerAmount + ' USDT each\n' +
+        '👥 Top ' + settings.topReferrersCount + ' Referrers will receive ' + settings.topReferrerAmount + ' USDT each\n\n' +
+        '📘 By Participating you are agreeing to the Zycot (Airdrop) Program Terms and Conditions.\n\n' +
+        'Click "Continue" to proceed';
 
       await ctx.replyWithHTML(welcome, Markup.keyboard([['Continue']]).resize().oneTime());
     } catch (err) {
@@ -121,7 +119,7 @@ function createBot(token) {
       ctx.session.step = null;
 
       await ctx.reply(
-        `🔐 Please enter the captcha:\n\n<code>${captcha.display}</code>\n\nType the text above:`,
+        '🔐 Please enter the captcha:\n\n<code>' + captcha.display + '</code>\n\nType the text above:',
         { parse_mode: 'HTML', ...Markup.removeKeyboard() }
       );
       return;
@@ -130,7 +128,6 @@ function createBot(token) {
     await showTasks(ctx);
   });
 
-  // Single text handler
   bot.on(message('text'), async (ctx, next) => {
     ctx.session = ctx.session || {};
     const text = ctx.message.text.trim();
@@ -147,7 +144,7 @@ function createBot(token) {
       } else {
         const captcha = generateCaptcha();
         ctx.session.captcha = captcha.text;
-        await ctx.reply(`❌ Wrong captcha. Try again:\n\n<code>${captcha.display}</code>`, { parse_mode: 'HTML' });
+        await ctx.reply('❌ Wrong captcha. Try again:\n\n<code>' + captcha.display + '</code>', { parse_mode: 'HTML' });
       }
       return;
     }
@@ -183,12 +180,12 @@ function createBot(token) {
 
       const settings = await getSettings();
       const botUsername = settings.botUsername || process.env.BOT_USERNAME || 'Zycot_Airdrop_bot';
-      const refLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
+      const refLink = 'https://t.me/' + botUsername + '?start=' + user.referralCode;
 
       await ctx.replyWithHTML(
-        `✅ Details submitted successfully!\n\n` +
-        `📎 Your personal referral link:\n<code>${refLink}</code>\n\n` +
-        `Share this link to earn more referrals and increase your chance for Top Referrer rewards!`,
+        '✅ Details submitted successfully!\n\n' +
+        '📎 Your personal referral link:\n<code>' + refLink + '</code>\n\n' +
+        'Share this link to earn more referrals!',
         Markup.keyboard([
           ['Statistics', 'Airdrop Rules'],
           ['Leaderboard', 'Main Menu']
@@ -208,8 +205,8 @@ function createBot(token) {
 
     let text = '📋 <b>Complete the tasks below!</b>\n\nYou must complete all the tasks.\n\n';
     for (const t of tasks) {
-      text += `🔹 <b>${t.title}</b>`;
-      if (t.link) text += `\n   ${t.link}`;
+      text += '🔹 <b>' + t.title + '</b>';
+      if (t.link) text += '\n   ' + t.link;
       text += '\n\n';
     }
     text += 'After you have completed the tasks, press "✅ Check"';
@@ -221,7 +218,6 @@ function createBot(token) {
     ]).resize());
   }
 
-  // ✅ Check with real channel verification
   bot.hears('✅ Check', async (ctx) => {
     const user = await getOrCreateUser(ctx);
     const tasks = await prisma.task.findMany({
@@ -230,18 +226,14 @@ function createBot(token) {
     });
 
     const failed = [];
-    const passed = [];
 
     for (const task of tasks) {
       if (task.type === 'JOIN_CHANNEL' || task.type === 'JOIN_GROUP') {
         const chat = extractChatFromLink(task.link);
-        if (!chat) {
-          passed.push(task.title);
-          continue;
-        }
+        if (!chat) continue;
+
         const isMember = await isUserMember(ctx.telegram, chat, ctx.from.id);
         if (isMember) {
-          passed.push(task.title);
           await prisma.taskSubmission.upsert({
             where: { userId_taskId: { userId: user.id, taskId: task.id } },
             create: { userId: user.id, taskId: task.id, status: 'APPROVED', verifiedAt: new Date() },
@@ -251,7 +243,6 @@ function createBot(token) {
           failed.push({ title: task.title, link: task.link });
         }
       } else {
-        passed.push(task.title);
         await prisma.taskSubmission.upsert({
           where: { userId_taskId: { userId: user.id, taskId: task.id } },
           create: { userId: user.id, taskId: task.id, status: 'PENDING' },
@@ -262,8 +253,8 @@ function createBot(token) {
 
     if (failed.length > 0) {
       let msg = '❌ You have not completed all required tasks:\n\n';
-      failed.forEach(f => {
-        msg += `• ${f.title}\n  ${f.link || ''}\n`;
+      failed.forEach(function(f) {
+        msg += '• ' + f.title + '\n  ' + (f.link || '') + '\n';
       });
       msg += '\nPlease join the channels/groups above and press "✅ Check" again.';
       return ctx.reply(msg, Markup.keyboard([['✅ Check'], ['Main Menu']]).resize());
@@ -308,20 +299,18 @@ function createBot(token) {
     const user = await getOrCreateUser(ctx);
     const settings = await getSettings();
     const botUsername = settings.botUsername || process.env.BOT_USERNAME || 'Zycot_Airdrop_bot';
-    const refLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
+    const refLink = 'https://t.me/' + botUsername + '?start=' + user.referralCode;
 
     await ctx.replyWithHTML(
-      `Hi <b>${user.firstName || user.username}</b>\n\n` +
-      `🔹 ${settings.randomWinnersCount} Random winners will receive ${settings.randomWinnerAmount} USDT each\n` +
-      `👥 Top ${settings.topReferrersCount} Referrers will receive ${settings.topReferrerAmount} USDT each\n\n` +
-      `📎 Referral link:\n<code>${refLink}</code>\n\n` +
-      `👥 Your Referrals: <b>${user.referralCount}</b>\n\n` +
-      `Your Submitted details:\n` +
-      `---------------------\n` +
-      `Telegram: ${user.username || user.telegramId}\n` +
-      `X Profile: ${user.xProfileLink || 'Not submitted'}\n` +
-      `Wallet: ${user.walletAddress || 'Not submitted'}\n` +
-      `Tasks: ${user.tasksCompleted ? '✅ Completed' : '❌ Pending'}`,
+      'Hi <b>' + (user.firstName || user.username) + '</b>\n\n' +
+      '🔹 ' + settings.randomWinnersCount + ' Random winners → ' + settings.randomWinnerAmount + ' USDT each\n' +
+      '👥 Top ' + settings.topReferrersCount + ' Referrers → ' + settings.topReferrerAmount + ' USDT each\n\n' +
+      '📎 Referral link:\n<code>' + refLink + '</code>\n\n' +
+      '👥 Your Referrals: <b>' + user.referralCount + '</b>\n\n' +
+      'Telegram: ' + (user.username || user.telegramId) + '\n' +
+      'X Profile: ' + (user.xProfileLink || 'Not submitted') + '\n' +
+      'Wallet: ' + (user.walletAddress || 'Not submitted') + '\n' +
+      'Tasks: ' + (user.tasksCompleted ? '✅ Completed' : '❌ Pending'),
       Markup.keyboard([
         ['Statistics', 'Airdrop Rules'],
         ['Leaderboard', 'Main Menu']
@@ -332,19 +321,11 @@ function createBot(token) {
   bot.hears('Airdrop Rules', async (ctx) => {
     const settings = await getSettings();
     const rules = settings.rulesText ||
-      `📌 Zycot AIRDROP RULES, READ CAREFULLY 📌\n\n` +
-      `✅ Mandatory Actions:\n` +
-      `• You must complete all the tasks\n` +
-      `• You must submit a valid BEP-20 USDT wallet address\n` +
-      `• You must be active on social media\n\n` +
-      `📈 Increase winning chances by:\n` +
-      `• Completing all mandatory tasks\n` +
-      `• Refer your friends as much as possible\n` +
-      `• Be active on project social media\n\n` +
-      `🚫 Prohibited:\n` +
-      `• Fake accounts / bots will not be rewarded\n` +
-      `• One registration per user\n\n` +
-      `🚨 Zycot is responsible for fair & on-time distribution!`;
+      '📌 Zycot AIRDROP RULES\n\n' +
+      '✅ Complete all tasks\n' +
+      '✅ Submit valid BEP-20 wallet\n' +
+      '🚫 No fake accounts / bots\n' +
+      '🚫 One registration per user';
 
     await ctx.reply(rules, Markup.keyboard([
       ['Statistics', 'Airdrop Rules'],
@@ -360,9 +341,9 @@ function createBot(token) {
       select: { username: true, firstName: true, referralCount: true }
     });
 
-    let text = '🏆 Top 10 Referrers (updates every hour):\n\n';
-    top.forEach((u, i) => {
-      text += `${i + 1}. ${u.username || u.firstName || 'User'} — ${u.referralCount}\n`;
+    let text = '🏆 Top 10 Referrers:\n\n';
+    top.forEach(function(u, i) {
+      text += (i + 1) + '. ' + (u.username || u.firstName || 'User') + ' — ' + u.referralCount + '\n';
     });
 
     await ctx.reply(text, Markup.keyboard([
@@ -376,12 +357,12 @@ function createBot(token) {
   });
 
   bot.hears(['✅ Done', '✅ Yes'], async (ctx) => {
-    await ctx.reply('Great! Press "✅ Check" when you have finished all tasks.',
+    await ctx.reply('Great! Press "✅ Check" when finished.',
       Markup.keyboard([['✅ Check'], ['Submit Details'], ['Main Menu']]).resize());
   });
 
-  bot.catch((err, ctx) => {
-    console.error(`Bot error (${ctx?.updateType}):`, err);
+  bot.catch(function(err, ctx) {
+    console.error('Bot error (' + (ctx && ctx.updateType) + '):', err);
   });
 
   return bot;
@@ -399,7 +380,7 @@ async function seedDefaults() {
         password: await bcrypt.hash(adminPass, 10)
       }
     });
-    console.log(`✅ Default admin created: ${adminUser}`);
+    console.log('✅ Default admin created: ' + adminUser);
   }
 
   let settings = await prisma.setting.findFirst();
@@ -424,13 +405,34 @@ async function seedDefaults() {
       data: [
         { title: 'Join Zycot Telegram', type: 'JOIN_CHANNEL', link: 'https://t.me/Zycot', order: 1, isRequired: true },
         { title: 'Join Advertiser Telegram Channel', type: 'JOIN_CHANNEL', link: 'https://t.me/airdropinspector', order: 2, isRequired: true },
-        { title: 'Follow the below X accounts', type: 'FOLLOW_X', description: 'Follow Zycot_Agency, Cryptoloophq, CryptoRecords01, Edenside_H_F', order: 3, isRequired: true },
-        { title: 'Follow Advertiser Twitter, like and retweet the airdrop post', type: 'LIKE_RETWEET', order: 4, isRequired: true },
+        { title: 'Follow the below X accounts', type: 'FOLLOW_X', description: 'Follow X accounts', order: 3, isRequired: true },
+        { title: 'Follow Advertiser Twitter, like and retweet', type: 'LIKE_RETWEET', order: 4, isRequired: true },
         { title: 'Join Advertiser Telegram Group', type: 'JOIN_GROUP', link: 'https://t.me/AirdropSupportGroup', order: 5, isRequired: true }
       ]
     });
     console.log('✅ Default tasks seeded');
   }
+}
+
+function resolvePublicDomain() {
+  // Priority order for Railway + manual
+  const candidates = [
+    process.env.WEBHOOK_DOMAIN,
+    process.env.RAILWAY_PUBLIC_DOMAIN,
+    process.env.RAILWAY_STATIC_URL,
+    process.env.PUBLIC_URL
+  ].filter(Boolean);
+
+  if (candidates.length === 0) return null;
+
+  let domain = candidates[0].trim();
+  // Remove trailing slash
+  domain = domain.replace(/\/$/, '');
+  // Ensure https
+  if (!domain.startsWith('http')) {
+    domain = 'https://' + domain;
+  }
+  return domain;
 }
 
 async function startBot() {
@@ -442,16 +444,46 @@ async function startBot() {
 
   const bot = createBot(token);
   botInstance = bot;
-  await seedDefaults();
 
-  const domain = process.env.WEBHOOK_DOMAIN || process.env.RAILWAY_PUBLIC_DOMAIN;
-  if (domain) {
-    const webhookDomain = domain.startsWith('http') ? domain : `https://${domain}`;
-    const secretPath = `/telegraf/${token.split(':')[1]}`;
-    await bot.telegram.setWebhook(`${webhookDomain}${secretPath}`);
-    console.log(`✅ Webhook set: ${webhookDomain}${secretPath}`);
-    return { bot, secretPath };
+  try {
+    await seedDefaults();
+  } catch (err) {
+    console.error('⚠️ seedDefaults error (continuing):', err.message);
+  }
+
+  const publicDomain = resolvePublicDomain();
+  const secretPath = '/telegraf/' + token.split(':')[1];
+
+  if (publicDomain) {
+    const webhookUrl = publicDomain + secretPath;
+    try {
+      // Clear any old webhook first
+      await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+
+      await bot.telegram.setWebhook(webhookUrl, {
+        drop_pending_updates: true
+      });
+
+      const info = await bot.telegram.getWebhookInfo();
+      console.log('✅ Webhook set successfully');
+      console.log('   URL:', info.url);
+      console.log('   Pending updates:', info.pending_update_count);
+      if (info.last_error_message) {
+        console.warn('   Last webhook error:', info.last_error_message);
+      }
+
+      return { bot, secretPath, webhookUrl };
+    } catch (err) {
+      console.error('❌ Failed to set webhook:', err.message);
+      console.log('🔄 Falling back to long polling...');
+      await bot.launch();
+      console.log('🤖 Bot started with long polling');
+      process.once('SIGINT', () => bot.stop('SIGINT'));
+      process.once('SIGTERM', () => bot.stop('SIGTERM'));
+      return { bot };
+    }
   } else {
+    console.log('ℹ️ No public domain found (WEBHOOK_DOMAIN / RAILWAY_PUBLIC_DOMAIN). Using polling.');
     await bot.launch();
     console.log('🤖 Bot started with long polling');
     process.once('SIGINT', () => bot.stop('SIGINT'));
