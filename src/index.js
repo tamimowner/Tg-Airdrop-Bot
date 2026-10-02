@@ -1,8 +1,6 @@
 require('dotenv').config();
 const express = require('express');
 const { execSync } = require('child_process');
-const adminApp = require('./admin/app');
-const { startBot } = require('./bot');
 
 const PORT = process.env.PORT || 3000;
 
@@ -10,10 +8,13 @@ async function ensureDatabase() {
   if (process.env.PRISMA_DB_PUSH === 'true' || process.env.PRISMA_DB_PUSH === '1') {
     try {
       console.log('📦 Running prisma db push...');
-      execSync('npx prisma db push --skip-generate', { stdio: 'inherit' });
+      execSync('npx prisma db push --accept-data-loss', {
+        stdio: 'inherit',
+        env: process.env
+      });
       console.log('✅ Database schema pushed');
     } catch (err) {
-      console.error('⚠️ prisma db push failed (continuing anyway):', err.message);
+      console.error('⚠️ prisma db push failed (continuing):', err.message);
     }
   }
 }
@@ -21,21 +22,21 @@ async function ensureDatabase() {
 async function main() {
   console.log('🚀 Starting Zycot Airdrop Bot + Admin Panel...');
 
+  // DB first
   await ensureDatabase();
+
+  // Load app modules AFTER possible generate/db push
+  const adminApp = require('./admin/app');
+  const { startBot } = require('./bot');
 
   const app = express();
 
-  // Important for Railway / reverse proxy (secure cookies)
   app.set('trust proxy', 1);
-
-  // Body parsers for webhook + admin
-  app.use(express.json());
+  app.use(express.json({ limit: '2mb' }));
   app.use(express.urlencoded({ extended: true }));
 
-  // Mount admin panel
   app.use(adminApp);
 
-  // Landing page
   app.get('/', (req, res) => {
     res.send(`
       <!DOCTYPE html>
@@ -62,20 +63,29 @@ async function main() {
     res.json({ status: 'ok', time: new Date().toISOString() });
   });
 
-  // Start Telegram bot (webhook or polling)
-  const botResult = await startBot();
+  // Start bot (do not crash whole server if bot fails)
+  let botResult = null;
+  try {
+    botResult = await startBot();
+  } catch (err) {
+    console.error('⚠️ Bot failed to start (admin panel still available):', err.message);
+  }
 
   if (botResult && botResult.secretPath && botResult.bot) {
-    // Webhook mode
     app.post(botResult.secretPath, (req, res) => {
-      botResult.bot.handleUpdate(req.body, res);
+      try {
+        botResult.bot.handleUpdate(req.body, res);
+      } catch (e) {
+        console.error('Webhook handle error:', e);
+        res.sendStatus(200);
+      }
     });
     app.get(botResult.secretPath, (req, res) => res.send('ok'));
   }
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🌐 Server running on port ${PORT}`);
-    console.log(`📊 Admin panel: http://localhost:${PORT}/admin`);
+    console.log(`📊 Admin panel: /admin`);
   });
 }
 
