@@ -4,7 +4,7 @@ const prisma = require('../utils/prisma');
 const { generateCaptcha, validateCaptcha } = require('../utils/captcha');
 const { isValidBEP20Address, normalizeAddress } = require('../utils/wallet');
 
-let bot = null;
+let botInstance = null;
 
 async function getSettings() {
   let settings = await prisma.setting.findFirst();
@@ -25,9 +25,7 @@ async function getOrCreateUser(ctx, referralCode = null) {
     let referredById = null;
 
     if (referralCode) {
-      const referrer = await prisma.user.findUnique({
-        where: { referralCode }
-      });
+      const referrer = await prisma.user.findUnique({ where: { referralCode } });
       if (referrer && referrer.telegramId !== BigInt(tgUser.id)) {
         referredById = referrer.id;
         await prisma.user.update({
@@ -60,8 +58,30 @@ async function getOrCreateUser(ctx, referralCode = null) {
   return user;
 }
 
+/** Extract @username from t.me link */
+function extractChatFromLink(link) {
+  if (!link) return null;
+  const match = link.match(/(?:t\.me\/|telegram\.me\/)([a-zA-Z0-9_+\-]+)/i);
+  if (!match) return null;
+  const part = match[1];
+  if (part.startsWith('+')) return null; // invite link
+  return '@' + part.replace(/^@/, '');
+}
+
+/** Check if user is member. Bot must be admin in the channel/group. */
+async function isUserMember(telegram, chatIdOrUsername, userId) {
+  try {
+    const member = await telegram.getChatMember(chatIdOrUsername, userId);
+    const okStatus = ['creator', 'administrator', 'member', 'restricted'];
+    return okStatus.includes(member.status);
+  } catch (err) {
+    console.error('getChatMember error:', chatIdOrUsername, err.message);
+    return false;
+  }
+}
+
 function createBot(token) {
-  bot = new Telegraf(token);
+  const bot = new Telegraf(token);
   bot.use(session());
 
   bot.start(async (ctx) => {
@@ -74,7 +94,7 @@ function createBot(token) {
         return ctx.reply('⛔ You are banned from this airdrop.');
       }
 
-      const welcome = settings.welcomeMessage || 
+      const welcome = settings.welcomeMessage ||
         `Hi <b>${user.firstName || user.username || 'User'}</b>! I am your friendly Zycot Bot\n\n` +
         `✅ Please complete all the tasks and submit details correctly to be eligible for the airdrop\n\n` +
         `$ Total for airdrop: ${settings.totalAirdropAmount} USDT\n` +
@@ -98,6 +118,7 @@ function createBot(token) {
       const captcha = generateCaptcha();
       ctx.session = ctx.session || {};
       ctx.session.captcha = captcha.text;
+      ctx.session.step = null;
 
       await ctx.reply(
         `🔐 Please enter the captcha:\n\n<code>${captcha.display}</code>\n\nType the text above:`,
@@ -106,21 +127,23 @@ function createBot(token) {
       return;
     }
 
-    await showTasks(ctx, user);
+    await showTasks(ctx);
   });
 
+  // Single text handler
   bot.on(message('text'), async (ctx, next) => {
-    if (ctx.session && ctx.session.captcha) {
-      const input = ctx.message.text.trim();
-      if (validateCaptcha(input, ctx.session.captcha)) {
+    ctx.session = ctx.session || {};
+    const text = ctx.message.text.trim();
+
+    if (ctx.session.captcha) {
+      if (validateCaptcha(text, ctx.session.captcha)) {
         await prisma.user.update({
           where: { telegramId: BigInt(ctx.from.id) },
           data: { captchaPassed: true }
         });
         delete ctx.session.captcha;
         await ctx.reply('✅ Captcha passed!');
-        const user = await getOrCreateUser(ctx);
-        await showTasks(ctx, user);
+        await showTasks(ctx);
       } else {
         const captcha = generateCaptcha();
         ctx.session.captcha = captcha.text;
@@ -128,68 +151,12 @@ function createBot(token) {
       }
       return;
     }
-    return next();
-  });
-
-  async function showTasks(ctx, user) {
-    const tasks = await prisma.task.findMany({
-      where: { isActive: true },
-      orderBy: { order: 'asc' }
-    });
-
-    let text = '📋 <b>Complete the tasks below!</b>\n\nYou must complete all the tasks.\n\n';
-    
-    for (const t of tasks) {
-      text += `🔹 ${t.title}`;
-      if (t.link) text += `\n   ${t.link}`;
-      text += '\n';
-    }
-
-    text += '\nAfter you have completed the tasks, press "✅ Check"';
-
-    await ctx.replyWithHTML(text, Markup.keyboard([
-      ['✅ Check'],
-      ['Statistics', 'Airdrop Rules'],
-      ['Leaderboard', 'Main Menu']
-    ]).resize());
-  }
-
-  bot.hears('✅ Check', async (ctx) => {
-    await ctx.reply(
-      'Click "Submit Details" to submit your details to verify whether you completed all the tasks or not.',
-      Markup.keyboard([['Submit Details'], ['Main Menu']]).resize()
-    );
-  });
-
-  bot.hears('Submit Details', async (ctx) => {
-    const user = await getOrCreateUser(ctx);
-    const settings = await getSettings();
-    ctx.session = ctx.session || {};
-    ctx.session.step = 'x_profile';
-
-    if (settings.requireXProfile) {
-      await ctx.reply(
-        '🔹 Follow the below X accounts and submit your X profile link:\n\n' +
-        'Example: https://www.x.com/yourusername\n\n' +
-        'Submit your X profile link:',
-        Markup.removeKeyboard()
-      );
-    } else {
-      ctx.session.step = 'wallet';
-      await askWallet(ctx);
-    }
-  });
-
-  bot.on(message('text'), async (ctx, next) => {
-    if (!ctx.session || !ctx.session.step) return next();
-
-    const user = await getOrCreateUser(ctx);
-    const text = ctx.message.text.trim();
 
     if (ctx.session.step === 'x_profile') {
       if (!text.includes('x.com') && !text.includes('twitter.com')) {
-        return ctx.reply('Please submit a valid X (Twitter) profile link.');
+        return ctx.reply('Please submit a valid X (Twitter) profile link.\nExample: https://x.com/yourusername');
       }
+      const user = await getOrCreateUser(ctx);
       await prisma.user.update({
         where: { id: user.id },
         data: { xProfileLink: text }
@@ -201,8 +168,9 @@ function createBot(token) {
 
     if (ctx.session.step === 'wallet') {
       if (!isValidBEP20Address(text)) {
-        return ctx.reply('❌ Invalid BEP-20 address. It should start with 0x and be 42 characters long.\n\nTry again:');
+        return ctx.reply('❌ Invalid BEP-20 address.\nIt must start with 0x and be 42 characters long.\n\nTry again:');
       }
+      const user = await getOrCreateUser(ctx);
       await prisma.user.update({
         where: { id: user.id },
         data: {
@@ -214,7 +182,8 @@ function createBot(token) {
       delete ctx.session.step;
 
       const settings = await getSettings();
-      const refLink = `https://t.me/${settings.botUsername || process.env.BOT_USERNAME || 'Zycot_Airdrop_bot'}?start=${user.referralCode}`;
+      const botUsername = settings.botUsername || process.env.BOT_USERNAME || 'Zycot_Airdrop_bot';
+      const refLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
 
       await ctx.replyWithHTML(
         `✅ Details submitted successfully!\n\n` +
@@ -231,10 +200,106 @@ function createBot(token) {
     return next();
   });
 
+  async function showTasks(ctx) {
+    const tasks = await prisma.task.findMany({
+      where: { isActive: true },
+      orderBy: { order: 'asc' }
+    });
+
+    let text = '📋 <b>Complete the tasks below!</b>\n\nYou must complete all the tasks.\n\n';
+    for (const t of tasks) {
+      text += `🔹 <b>${t.title}</b>`;
+      if (t.link) text += `\n   ${t.link}`;
+      text += '\n\n';
+    }
+    text += 'After you have completed the tasks, press "✅ Check"';
+
+    await ctx.replyWithHTML(text, Markup.keyboard([
+      ['✅ Check'],
+      ['Statistics', 'Airdrop Rules'],
+      ['Leaderboard', 'Main Menu']
+    ]).resize());
+  }
+
+  // ✅ Check with real channel verification
+  bot.hears('✅ Check', async (ctx) => {
+    const user = await getOrCreateUser(ctx);
+    const tasks = await prisma.task.findMany({
+      where: { isActive: true, isRequired: true },
+      orderBy: { order: 'asc' }
+    });
+
+    const failed = [];
+    const passed = [];
+
+    for (const task of tasks) {
+      if (task.type === 'JOIN_CHANNEL' || task.type === 'JOIN_GROUP') {
+        const chat = extractChatFromLink(task.link);
+        if (!chat) {
+          passed.push(task.title);
+          continue;
+        }
+        const isMember = await isUserMember(ctx.telegram, chat, ctx.from.id);
+        if (isMember) {
+          passed.push(task.title);
+          await prisma.taskSubmission.upsert({
+            where: { userId_taskId: { userId: user.id, taskId: task.id } },
+            create: { userId: user.id, taskId: task.id, status: 'APPROVED', verifiedAt: new Date() },
+            update: { status: 'APPROVED', verifiedAt: new Date() }
+          });
+        } else {
+          failed.push({ title: task.title, link: task.link });
+        }
+      } else {
+        passed.push(task.title);
+        await prisma.taskSubmission.upsert({
+          where: { userId_taskId: { userId: user.id, taskId: task.id } },
+          create: { userId: user.id, taskId: task.id, status: 'PENDING' },
+          update: {}
+        });
+      }
+    }
+
+    if (failed.length > 0) {
+      let msg = '❌ You have not completed all required tasks:\n\n';
+      failed.forEach(f => {
+        msg += `• ${f.title}\n  ${f.link || ''}\n`;
+      });
+      msg += '\nPlease join the channels/groups above and press "✅ Check" again.';
+      return ctx.reply(msg, Markup.keyboard([['✅ Check'], ['Main Menu']]).resize());
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { tasksCompleted: true }
+    });
+
+    await ctx.reply(
+      '✅ All join tasks verified!\n\nNow click "Submit Details" to submit your X profile and wallet.',
+      Markup.keyboard([['Submit Details'], ['Main Menu']]).resize()
+    );
+  });
+
+  bot.hears('Submit Details', async (ctx) => {
+    const settings = await getSettings();
+    ctx.session = ctx.session || {};
+
+    if (settings.requireXProfile) {
+      ctx.session.step = 'x_profile';
+      await ctx.reply(
+        '🔹 Submit your X (Twitter) profile link\n\nExample: https://x.com/yourusername\n\nSend the link now:',
+        Markup.removeKeyboard()
+      );
+    } else {
+      ctx.session.step = 'wallet';
+      await askWallet(ctx);
+    }
+  });
+
   async function askWallet(ctx) {
     await ctx.reply(
       'Submit your BEP-20 USDT wallet address to receive USDT rewards\n' +
-      '(Recommended wallet to use: Binance, Trust wallet, Metamask)',
+      '(Recommended: Binance, Trust Wallet, Metamask)',
       Markup.removeKeyboard()
     );
   }
@@ -242,20 +307,21 @@ function createBot(token) {
   bot.hears('Statistics', async (ctx) => {
     const user = await getOrCreateUser(ctx);
     const settings = await getSettings();
-    const refLink = `https://t.me/${settings.botUsername || process.env.BOT_USERNAME || 'Zycot_Airdrop_bot'}?start=${user.referralCode}`;
+    const botUsername = settings.botUsername || process.env.BOT_USERNAME || 'Zycot_Airdrop_bot';
+    const refLink = `https://t.me/${botUsername}?start=${user.referralCode}`;
 
     await ctx.replyWithHTML(
       `Hi <b>${user.firstName || user.username}</b>\n\n` +
       `🔹 ${settings.randomWinnersCount} Random winners will receive ${settings.randomWinnerAmount} USDT each\n` +
-      `👥 Top ${settings.topReferrersCount} Referrers will receive ${settings.topReferrerAmount} USDT each\n` +
-      `[Top ${settings.topReferrersCount} referral winners list can be viewed from the leaderboard]\n\n` +
-      `📎 Referral link: <code>${refLink}</code>\n\n` +
-      `👥 Referrals: <b>${user.referralCount}</b>\n\n` +
+      `👥 Top ${settings.topReferrersCount} Referrers will receive ${settings.topReferrerAmount} USDT each\n\n` +
+      `📎 Referral link:\n<code>${refLink}</code>\n\n` +
+      `👥 Your Referrals: <b>${user.referralCount}</b>\n\n` +
       `Your Submitted details:\n` +
       `---------------------\n` +
       `Telegram: ${user.username || user.telegramId}\n` +
       `X Profile: ${user.xProfileLink || 'Not submitted'}\n` +
-      `Wallet: ${user.walletAddress || 'Not submitted'}`,
+      `Wallet: ${user.walletAddress || 'Not submitted'}\n` +
+      `Tasks: ${user.tasksCompleted ? '✅ Completed' : '❌ Pending'}`,
       Markup.keyboard([
         ['Statistics', 'Airdrop Rules'],
         ['Leaderboard', 'Main Menu']
@@ -265,27 +331,21 @@ function createBot(token) {
 
   bot.hears('Airdrop Rules', async (ctx) => {
     const settings = await getSettings();
-    let rules = settings.rulesText;
-    if (!rules) {
-      rules = 
-        `📌 Zycot AIRDROP RULES, READ CAREFULLY 📌\n\n` +
-        `✅ Mandatory Actions:\n` +
-        `• You must complete all the tasks\n` +
-        `- You must submit a valid BEP-20 USDT wallet address\n` +
-        `- You must be active on the social media\n\n` +
-        `📈 Increase winning chances by:\n` +
-        `- Completing all the mandatory tasks\n` +
-        `- Refer your friends as much as possible\n` +
-        `- Be active on the project social media\n\n` +
-        `🚫 Actions prohibited\n` +
-        `- Only valid users will be rewarded.\n` +
-        `- All fake accounts and bot won't earn rewards.\n` +
-        `- One registration per user\n\n` +
-        `💬 Airdrop details\n` +
-        `- Airdrop will close on the set end date\n` +
-        `- Rewards will be distributed within a week after airdrop ends\n\n` +
-        `🚨 Zycot is responsible for the airdrop distribution on time, free and fairly!`;
-    }
+    const rules = settings.rulesText ||
+      `📌 Zycot AIRDROP RULES, READ CAREFULLY 📌\n\n` +
+      `✅ Mandatory Actions:\n` +
+      `• You must complete all the tasks\n` +
+      `• You must submit a valid BEP-20 USDT wallet address\n` +
+      `• You must be active on social media\n\n` +
+      `📈 Increase winning chances by:\n` +
+      `• Completing all mandatory tasks\n` +
+      `• Refer your friends as much as possible\n` +
+      `• Be active on project social media\n\n` +
+      `🚫 Prohibited:\n` +
+      `• Fake accounts / bots will not be rewarded\n` +
+      `• One registration per user\n\n` +
+      `🚨 Zycot is responsible for fair & on-time distribution!`;
+
     await ctx.reply(rules, Markup.keyboard([
       ['Statistics', 'Airdrop Rules'],
       ['Leaderboard', 'Main Menu']
@@ -300,9 +360,9 @@ function createBot(token) {
       select: { username: true, firstName: true, referralCount: true }
     });
 
-    let text = '🏆 Top 10 Referrers are below (List updates every 1 hour):\n\n';
+    let text = '🏆 Top 10 Referrers (updates every hour):\n\n';
     top.forEach((u, i) => {
-      text += `${i + 1}. ${u.username || u.firstName || 'User'} - ${u.referralCount}\n`;
+      text += `${i + 1}. ${u.username || u.firstName || 'User'} — ${u.referralCount}\n`;
     });
 
     await ctx.reply(text, Markup.keyboard([
@@ -312,44 +372,19 @@ function createBot(token) {
   });
 
   bot.hears('Main Menu', async (ctx) => {
-    const user = await getOrCreateUser(ctx);
-    await showTasks(ctx, user);
+    await showTasks(ctx);
   });
 
   bot.hears(['✅ Done', '✅ Yes'], async (ctx) => {
-    await ctx.reply('Great! Continue with the next tasks or press Submit Details when ready.', 
-      Markup.keyboard([['Submit Details'], ['✅ Check'], ['Main Menu']]).resize());
+    await ctx.reply('Great! Press "✅ Check" when you have finished all tasks.',
+      Markup.keyboard([['✅ Check'], ['Submit Details'], ['Main Menu']]).resize());
   });
 
   bot.catch((err, ctx) => {
-    console.error(`Bot error for ${ctx.updateType}:`, err);
+    console.error(`Bot error (${ctx?.updateType}):`, err);
   });
 
   return bot;
-}
-
-async function startBot() {
-  const token = process.env.BOT_TOKEN;
-  if (!token) {
-    console.warn('⚠️ BOT_TOKEN not set. Bot will not start.');
-    return null;
-  }
-
-  const botInstance = createBot(token);
-  await seedDefaults();
-
-  if (process.env.WEBHOOK_DOMAIN) {
-    const secretPath = `/telegraf/${token.split(':')[1]}`;
-    await botInstance.telegram.setWebhook(`${process.env.WEBHOOK_DOMAIN}${secretPath}`);
-    console.log('Webhook set');
-    return { bot: botInstance, secretPath };
-  } else {
-    await botInstance.launch();
-    console.log('🤖 Bot started with polling');
-    process.once('SIGINT', () => botInstance.stop('SIGINT'));
-    process.once('SIGTERM', () => botInstance.stop('SIGTERM'));
-    return { bot: botInstance };
-  }
 }
 
 async function seedDefaults() {
@@ -364,7 +399,7 @@ async function seedDefaults() {
         password: await bcrypt.hash(adminPass, 10)
       }
     });
-    console.log(`✅ Default admin created: ${adminUser} / ${adminPass}`);
+    console.log(`✅ Default admin created: ${adminUser}`);
   }
 
   let settings = await prisma.setting.findFirst();
@@ -395,6 +430,33 @@ async function seedDefaults() {
       ]
     });
     console.log('✅ Default tasks seeded');
+  }
+}
+
+async function startBot() {
+  const token = process.env.BOT_TOKEN;
+  if (!token) {
+    console.warn('⚠️ BOT_TOKEN not set. Bot will not start.');
+    return null;
+  }
+
+  const bot = createBot(token);
+  botInstance = bot;
+  await seedDefaults();
+
+  const domain = process.env.WEBHOOK_DOMAIN || process.env.RAILWAY_PUBLIC_DOMAIN;
+  if (domain) {
+    const webhookDomain = domain.startsWith('http') ? domain : `https://${domain}`;
+    const secretPath = `/telegraf/${token.split(':')[1]}`;
+    await bot.telegram.setWebhook(`${webhookDomain}${secretPath}`);
+    console.log(`✅ Webhook set: ${webhookDomain}${secretPath}`);
+    return { bot, secretPath };
+  } else {
+    await bot.launch();
+    console.log('🤖 Bot started with long polling');
+    process.once('SIGINT', () => bot.stop('SIGINT'));
+    process.once('SIGTERM', () => bot.stop('SIGTERM'));
+    return { bot };
   }
 }
 
