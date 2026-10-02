@@ -1,10 +1,10 @@
 {
   "name": "zycot-airdrop-bot",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Zycot Telegram Airdrop Bot with Admin Panel - Node.js + Prisma + PostgreSQL",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js",
+    "start": "prisma generate && node src/index.js",
     "dev": "nodemon src/index.js",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
@@ -31,11 +31,11 @@
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
+    "prisma": "^5.22.0",
     "telegraf": "^4.16.3",
     "uuid": "^10.0.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.7",
-    "prisma": "^5.22.0"
+    "nodemon": "^3.1.7"
   }
 }
