@@ -1,0 +1,24 @@
+<nav class="bg-gray-800 border-b border-gray-700">
+  <div class="container mx-auto px-4">
+    <div class="flex items-center justify-between h-16">
+      <div class="flex items-center space-x-8">
+        <a href="/admin" class="text-yellow-400 font-bold text-xl">ZYCOT Admin</a>
+        <div class="hidden md:flex space-x-4">
+          <a href="/admin" class="text-gray-300 hover:text-white px-3 py-2 rounded">Dashboard</a>
+          <a href="/admin/users" class="text-gray-300 hover:text-white px-3 py-2 rounded">Users</a>
+          <a href="/admin/tasks" class="text-gray-300 hover:text-white px-3 py-2 rounded">Tasks</a>
+          <a href="/admin/verification" class="text-gray-300 hover:text-white px-3 py-2 rounded">Verification</a>
+          <a href="/admin/leaderboard" class="text-gray-300 hover:text-white px-3 py-2 rounded">Leaderboard</a>
+          <a href="/admin/winners" class="text-gray-300 hover:text-white px-3 py-2 rounded">Winners</a>
+          <a href="/admin/payments" class="text-gray-300 hover:text-white px-3 py-2 rounded">Payments</a>
+          <a href="/admin/broadcast" class="text-gray-300 hover:text-white px-3 py-2 rounded">Broadcast</a>
+          <a href="/admin/settings" class="text-gray-300 hover:text-white px-3 py-2 rounded">Settings</a>
+        </div>
+      </div>
+      <div class="flex items-center space-x-4">
+        <span class="text-gray-400 text-sm"><%= typeof username !== 'undefined' ? username : 'Admin' %></span>
+        <a href="/admin/logout" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm">Logout</a>
+      </div>
+    </div>
+  </div>
+</nav>
