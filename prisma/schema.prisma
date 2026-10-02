@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Setting {
+  id                    String   @id @default(cuid())
+  botToken              String?
+  botUsername           String?
+  airdropName           String   @default("ZYCOT AIRDROP")
+  totalAirdropAmount    Float    @default(300)
+  randomWinnersCount    Int      @default(100)
+  randomWinnerAmount    Float    @default(2)
+  topReferrersCount     Int      @default(10)
+  topReferrerAmount     Float    @default(10)
+  airdropEndDate        DateTime?
+  rewardsDistributionDays Int    @default(7)
+  captchaEnabled        Boolean  @default(true)
+  requireWallet         Boolean  @default(true)
+  requireXProfile       Boolean  @default(true)
+  welcomeMessage        String?  @db.Text
+  rulesText             String?  @db.Text
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  type        TaskType @default(JOIN_CHANNEL)
+  link        String?
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  isRequired  Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  submissions TaskSubmission[]
+}
+
+enum TaskType {
+  JOIN_CHANNEL
+  JOIN_GROUP
+  FOLLOW_X
+  LIKE_RETWEET
+  CUSTOM
+  CAPTCHA
+}
+
+model User {
+  id              String   @id @default(cuid())
+  telegramId      BigInt   @unique
+  username        String?
+  firstName       String?
+  lastName        String?
+  languageCode    String?
+  referralCode    String   @unique
+  referredById    String?
+  referredBy      User?    @relation("Referrals", fields: [referredById], references: [id])
+  referrals       User[]   @relation("Referrals")
+  xProfileLink    String?
+  walletAddress   String?
+  walletNetwork   String?  @default("BEP20")
+  isVerified      Boolean  @default(false)
+  isBanned        Boolean  @default(false)
+  captchaPassed   Boolean  @default(false)
+  tasksCompleted  Boolean  @default(false)
+  detailsSubmitted Boolean @default(false)
+  referralCount   Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  submissions     TaskSubmission[]
+  rewards         Reward[]
+  auditLogs       AuditLog[]
+}
+
+model TaskSubmission {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  status      SubmissionStatus @default(PENDING)
+  proof       String?  @db.Text
+  verifiedBy  String?
+  verifiedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, taskId])
+}
+
+enum SubmissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Reward {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        RewardType
+  amount      Float
+  status      PaymentStatus @default(PENDING)
+  txHash      String?
+  paidAt      DateTime?
+  note        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+enum RewardType {
+  RANDOM_WINNER
+  TOP_REFERRER
+  BONUS
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+}
+
+model Winner {
+  id          String   @id @default(cuid())
+  userId      String
+  type        RewardType
+  amount      Float
+  selectedAt  DateTime @default(now())
+  batchId     String?
+}
+
+model Broadcast {
+  id          String   @id @default(cuid())
+  message     String   @db.Text
+  status      BroadcastStatus @default(DRAFT)
+  sentCount   Int      @default(0)
+  failedCount Int      @default(0)
+  createdAt   DateTime @default(now())
+  sentAt      DateTime?
+}
+
+enum BroadcastStatus {
+  DRAFT
+  SENDING
+  COMPLETED
+  FAILED
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  action      String
+  details     String?  @db.Text
+  ip          String?
+  createdAt   DateTime @default(now())
+}
