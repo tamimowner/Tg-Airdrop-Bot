@@ -39,13 +39,11 @@ function requireAuth(req, res, next) {
   res.redirect('/admin/login');
 }
 
-// Login page
 app.get('/admin/login', function(req, res) {
   if (req.session && req.session.adminId) return res.redirect('/admin');
   res.render('login', { error: null });
 });
 
-// Login submit
 app.post('/admin/login', async function(req, res) {
   try {
     const username = (req.body && req.body.username) ? String(req.body.username).trim() : '';
@@ -55,41 +53,31 @@ app.post('/admin/login', async function(req, res) {
       return res.render('login', { error: 'Username and password required' });
     }
 
-    console.log('Login attempt for:', username);
-
     const admin = await prisma.admin.findUnique({ where: { username: username } });
-
     if (!admin) {
-      console.log('Admin not found:', username);
       return res.render('login', { error: 'Invalid username or password' });
     }
 
     const ok = await bcrypt.compare(password, admin.password);
     if (!ok) {
-      console.log('Wrong password for:', username);
       return res.render('login', { error: 'Invalid username or password' });
     }
 
     req.session.adminId = admin.id;
     req.session.username = admin.username;
-
-    // Ensure session is saved before redirect
     req.session.save(function(err) {
       if (err) {
-        console.error('Session save error:', err);
         return res.render('login', { error: 'Session error. Try again.' });
       }
-      console.log('Login success:', username);
       return res.redirect('/admin');
     });
   } catch (err) {
     console.error('LOGIN ERROR:', err);
     const msg = err.message || 'Server error';
-    // Show helpful message for common DB issues
-    if (msg.includes('does not exist') || msg.includes('P2021') || msg.includes('P2001')) {
-      return res.render('login', { error: 'Database table missing. Redeploy or check DATABASE_URL / PRISMA_DB_PUSH.' });
+    if (msg.includes('does not exist') || msg.includes('P2021')) {
+      return res.render('login', { error: 'Database table missing. Check DATABASE_URL / redeploy.' });
     }
-    if (msg.includes('connect') || msg.includes('P1001') || msg.includes('P1000')) {
+    if (msg.includes('connect') || msg.includes('P1001')) {
       return res.render('login', { error: 'Cannot connect to database. Check DATABASE_URL.' });
     }
     return res.render('login', { error: 'Server error: ' + msg });
@@ -183,24 +171,58 @@ app.post('/admin/users/:id/unban', requireAuth, async function(req, res) {
   res.redirect('/admin/users');
 });
 
-// Tasks
+// ========== TASKS (full edit) ==========
 app.get('/admin/tasks', requireAuth, async function(req, res) {
-  const tasks = await prisma.task.findMany({ orderBy: { order: 'asc' } });
-  res.render('tasks', { username: req.session.username, tasks: tasks });
+  try {
+    const tasks = await prisma.task.findMany({ orderBy: { order: 'asc' } });
+    let editTask = null;
+    if (req.query.edit) {
+      editTask = await prisma.task.findUnique({ where: { id: req.query.edit } });
+    }
+    res.render('tasks', {
+      username: req.session.username,
+      tasks: tasks,
+      editTask: editTask
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error: ' + err.message);
+  }
 });
 
 app.post('/admin/tasks', requireAuth, async function(req, res) {
-  const title = req.body.title;
-  const description = req.body.description;
-  const type = req.body.type || 'CUSTOM';
-  const link = req.body.link;
-  const order = parseInt(req.body.order) || 0;
-  const isRequired = req.body.isRequired === 'on' || req.body.isRequired === true;
-
   await prisma.task.create({
-    data: { title: title, description: description, type: type, link: link, order: order, isRequired: isRequired }
+    data: {
+      title: req.body.title,
+      description: req.body.description || null,
+      type: req.body.type || 'CUSTOM',
+      link: req.body.link || null,
+      order: parseInt(req.body.order) || 0,
+      isRequired: req.body.isRequired === 'on' || req.body.isRequired === true
+    }
   });
   res.redirect('/admin/tasks');
+});
+
+app.post('/admin/tasks/:id/edit', requireAuth, async function(req, res) {
+  try {
+    await prisma.task.update({
+      where: { id: req.params.id },
+      data: {
+        title: req.body.title,
+        description: req.body.description || null,
+        type: req.body.type || 'CUSTOM',
+        link: req.body.link || null,
+        order: parseInt(req.body.order) || 0,
+        isRequired: req.body.isRequired === 'on',
+        isActive: req.body.isActive === 'on'
+      }
+    });
+    res.redirect('/admin/tasks');
+  } catch (err) {
+    console.error('Task edit error:', err);
+    res.status(500).send('Edit failed: ' + err.message);
+  }
 });
 
 app.post('/admin/tasks/:id/toggle', requireAuth, async function(req, res) {
