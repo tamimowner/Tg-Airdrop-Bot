@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payments - Zycot Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+  <%- include('partials/nav') %>
+  <div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold text-yellow-400 mb-6">Payment Management</h1>
+    <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-x-auto">
+      <table class="w-full text-left">
+        <thead>
+          <tr class="text-gray-400 border-b border-gray-700">
+            <th class="p-4">User</th>
+            <th class="p-4">Wallet</th>
+            <th class="p-4">Type</th>
+            <th class="p-4">Amount</th>
+            <th class="p-4">Status</th>
+            <th class="p-4">TX Hash</th>
+            <th class="p-4">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% rewards.forEach(r => { %>
+            <tr class="border-b border-gray-700/50">
+              <td class="p-4">@<%= r.user.username || r.user.telegramId %></td>
+              <td class="p-4 text-xs font-mono max-w-xs truncate"><%= r.user.walletAddress || '-' %></td>
+              <td class="p-4"><%= r.type %></td>
+              <td class="p-4 text-green-400"><%= r.amount %></td>
+              <td class="p-4">
+                <span class="<%= r.status === 'PAID' ? 'text-green-400' : r.status === 'PENDING' ? 'text-yellow-400' : 'text-red-400' %>">
+                  <%= r.status %>
+                </span>
+              </td>
+              <td class="p-4 text-xs"><%= r.txHash || '-' %></td>
+              <td class="p-4">
+                <% if (r.status !== 'PAID') { %>
+                  <form method="POST" action="/admin/payments/<%= r.id %>/mark-paid" class="flex gap-1">
+                    <input name="txHash" placeholder="TX Hash" class="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-xs w-32">
+                    <button class="bg-green-600 px-2 py-1 rounded text-xs">Mark Paid</button>
+                  </form>
+                <% } %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

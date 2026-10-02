@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Winners - Zycot Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+  <%- include('partials/nav') %>
+  <div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-6">
+      <h1 class="text-3xl font-bold text-yellow-400">Winners</h1>
+      <form method="POST" action="/admin/winners/select-random" onsubmit="return confirm('Select random winners now? This cannot be undone easily.')">
+        <button class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-bold px-6 py-2 rounded">Select Random Winners</button>
+      </form>
+    </div>
+    <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-x-auto">
+      <table class="w-full text-left">
+        <thead>
+          <tr class="text-gray-400 border-b border-gray-700">
+            <th class="p-4">User</th>
+            <th class="p-4">Type</th>
+            <th class="p-4">Amount</th>
+            <th class="p-4">Selected At</th>
+            <th class="p-4">Batch</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% winners.forEach(w => { %>
+            <tr class="border-b border-gray-700/50">
+              <td class="p-4">@<%= w.user ? (w.user.username || w.user.telegramId) : w.userId %></td>
+              <td class="p-4"><%= w.type %></td>
+              <td class="p-4 text-green-400"><%= w.amount %> USDT</td>
+              <td class="p-4 text-sm"><%= new Date(w.selectedAt).toLocaleString() %></td>
+              <td class="p-4 text-xs"><%= w.batchId || '-' %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

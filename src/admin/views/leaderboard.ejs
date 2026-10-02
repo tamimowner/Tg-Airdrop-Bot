@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leaderboard - Zycot Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+  <%- include('partials/nav') %>
+  <div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold text-yellow-400 mb-6">Top Referrers</h1>
+    <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-x-auto">
+      <table class="w-full text-left">
+        <thead>
+          <tr class="text-gray-400 border-b border-gray-700">
+            <th class="p-4">#</th>
+            <th class="p-4">Username</th>
+            <th class="p-4">Name</th>
+            <th class="p-4">Telegram ID</th>
+            <th class="p-4">Referrals</th>
+            <th class="p-4">Verified</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% top.forEach((u, i) => { %>
+            <tr class="border-b border-gray-700/50 <%= i < 10 ? 'bg-yellow-500/5' : '' %>">
+              <td class="p-4 font-bold <%= i < 3 ? 'text-yellow-400' : '' %>"><%= i + 1 %></td>
+              <td class="p-4">@<%= u.username || '-' %></td>
+              <td class="p-4"><%= u.firstName || '-' %></td>
+              <td class="p-4 text-sm"><%= u.telegramId.toString() %></td>
+              <td class="p-4 font-bold text-blue-400"><%= u.referralCount %></td>
+              <td class="p-4"><%= u.isVerified ? '✅' : '❌' %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>
