@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Zycot Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+  <%- include('partials/nav') %>
+  <div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-8 text-yellow-400">Dashboard</h1>
+    
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+      <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <div class="text-gray-400 text-sm">Total Users</div>
+        <div class="text-3xl font-bold mt-2"><%= stats.totalUsers %></div>
+      </div>
+      <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <div class="text-gray-400 text-sm">Verified Users</div>
+        <div class="text-3xl font-bold mt-2 text-green-400"><%= stats.verifiedUsers %></div>
+      </div>
+      <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <div class="text-gray-400 text-sm">Pending Verifications</div>
+        <div class="text-3xl font-bold mt-2 text-orange-400"><%= stats.pendingSubmissions %></div>
+      </div>
+      <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <div class="text-gray-400 text-sm">Total Referrals</div>
+        <div class="text-3xl font-bold mt-2 text-blue-400"><%= stats.totalReferrals %></div>
+      </div>
+    </div>
+
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+      <h2 class="text-xl font-semibold mb-4">Recent Users</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left">
+          <thead>
+            <tr class="text-gray-400 border-b border-gray-700">
+              <th class="py-3">Telegram</th>
+              <th class="py-3">Name</th>
+              <th class="py-3">Referrals</th>
+              <th class="py-3">Status</th>
+              <th class="py-3">Joined</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% recentUsers.forEach(u => { %>
+              <tr class="border-b border-gray-700/50">
+                <td class="py-3">@<%= u.username || u.telegramId %></td>
+                <td class="py-3"><%= u.firstName || '-' %></td>
+                <td class="py-3"><%= u.referralCount %></td>
+                <td class="py-3">
+                  <% if (u.isVerified) { %>
+                    <span class="text-green-400">Verified</span>
+                  <% } else { %>
+                    <span class="text-yellow-400">Pending</span>
+                  <% } %>
+                </td>
+                <td class="py-3 text-sm text-gray-400"><%= new Date(u.createdAt).toLocaleString() %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
