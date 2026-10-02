@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings - Zycot Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+  <%- include('partials/nav') %>
+  <div class="container mx-auto px-4 py-8 max-w-3xl">
+    <h1 class="text-3xl font-bold text-yellow-400 mb-6">Airdrop Settings</h1>
+    
+    <% if (typeof success !== 'undefined') { %>
+      <div class="bg-green-500/20 border border-green-500 text-green-300 px-4 py-3 rounded mb-4">Settings saved!</div>
+    <% } %>
+
+    <form method="POST" action="/admin/settings" class="bg-gray-800 rounded-xl p-6 border border-gray-700 space-y-6">
+      <div>
+        <label class="block text-sm text-gray-400 mb-1">Airdrop Name</label>
+        <input name="airdropName" value="<%= settings.airdropName || 'ZYCOT AIRDROP' %>" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white">
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Total Airdrop (USDT)</label>
+          <input name="totalAirdropAmount" type="number" step="0.01" value="<%= settings.totalAirdropAmount || 300 %>" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Airdrop End Date</label>
+          <input name="airdropEndDate" type="date" value="<%= settings.airdropEndDate ? new Date(settings.airdropEndDate).toISOString().split('T')[0] : '' %>" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Random Winners Count</label>
+          <input name="randomWinnersCount" type="number" value="<%= settings.randomWinnersCount || 100 %>" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Amount per Random Winner</label>
+          <input name="randomWinnerAmount" type="number" step="0.01" value="<%= settings.randomWinnerAmount || 2 %>" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Top Referrers Count</label>
+          <input name="topReferrersCount" type="number" value="<%= settings.topReferrersCount || 10 %>" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white">
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-1">Amount per Top Referrer</label>
+          <input name="topReferrerAmount" type="number" step="0.01" value="<%= settings.topReferrerAmount || 10 %>" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-4">
+        <label class="flex items-center gap-2">
+          <input type="checkbox" name="captchaEnabled" <%= settings.captchaEnabled !== false ? 'checked' : '' %>>
+          Captcha Enabled
+        </label>
+        <label class="flex items-center gap-2">
+          <input type="checkbox" name="requireWallet" <%= settings.requireWallet !== false ? 'checked' : '' %>>
+          Require Wallet
+        </label>
+        <label class="flex items-center gap-2">
+          <input type="checkbox" name="requireXProfile" <%= settings.requireXProfile !== false ? 'checked' : '' %>>
+          Require X Profile
+        </label>
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-1">Bot Token (optional override)</label>
+        <input name="botToken" value="<%= settings.botToken || '' %>" placeholder="Leave empty to use env BOT_TOKEN" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white">
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-1">Welcome Message</label>
+        <textarea name="welcomeMessage" rows="3" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"><%= settings.welcomeMessage || '' %></textarea>
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-1">Airdrop Rules Text</label>
+        <textarea name="rulesText" rows="6" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"><%= settings.rulesText || '' %></textarea>
+      </div>
+
+      <button type="submit" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-bold px-8 py-3 rounded-lg">Save Settings</button>
+    </form>
+  </div>
+</body>
+</html>
